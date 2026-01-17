@@ -1,0 +1,207 @@
+<style>
+    .error-border { border: 2px solid #dc3545 !important; }
+    .validation-msg { color: #dc3545; font-size: 0.8em; display: none; margin-top: 1px; margin-bottom: 10px; }
+</style>
+
+<div class="card">
+    <h3 id="formTitle">Add Schedule Entry</h3>
+    <input type="hidden" id="entryId">
+    <select id="facultySelect"><option value="">Select Faculty</option></select>
+    <select id="entryYear"><option value="">Select Year</option></select>
+    <select id="entryCourse"><option value="">Select Course</option></select>
+    <select id="entryInstructor"><option value="">Select Instructor</option></select>
+
+    <input type="text" id="entryDay" placeholder="Day (e.g. Monday)">
+    <input type="time" id="entryStart">
+    <input type="time" id="entryEnd">
+    <input type="text" id="entryRoom" placeholder="Room (e.g. 101B)">
+
+    <p id="validationError" class="validation-msg">Please fill in all fields correctly.</p>
+    <button id="submitBtn" onclick="saveSchedule()">Save Schedule Entry</button>
+</div>
+
+<script>
+    if (localStorage.getItem("isAdmin") !== "true") {
+        alert("Unauthorized access!");
+        window.location.href = "login.html";
+    }
+
+    async function initializeDropdowns() {
+        try {
+            const facultyRes = await fetch('/api/faculties');
+            const faculties = await facultyRes.json();
+            const facultySelect = document.getElementById('facultySelect');
+            if (facultySelect && Array.isArray(faculties)) {
+                faculties.forEach(f => {
+                    facultySelect.innerHTML += `<option value="${f.id}">${f.name}</option>`;
+                });
+            }
+
+            const yearRes = await fetch("/api/years");
+            const years = await yearRes.json();
+            const yearSelect = document.getElementById('entryYear');
+            if (yearSelect && Array.isArray(years)) {
+                years.forEach(y => {
+                    yearSelect.innerHTML += `<option value="${y.id}">Year ${y.yearNumber}</option>`;
+                });
+            }
+
+            const courseRes = await fetch('/api/courses');
+            const courses = await courseRes.json();
+            const courseSelect = document.getElementById('entryCourse');
+            if (courseSelect && Array.isArray(courses)) {
+                courses.forEach(c => {
+                    courseSelect.innerHTML += `<option value="${c.id}">${c.name} (${c.code})</option>`;
+                });
+            }
+
+            const instructorRes = await fetch('/api/instructors');
+            const instructors = await instructorRes.json();
+            const instructorSelect = document.getElementById('entryInstructor');
+            if (instructorSelect && Array.isArray(instructors)) {
+                instructors.forEach(i => {
+                    instructorSelect.innerHTML += `<option value="${i.id}">${i.name}</option>`;
+                });
+            }
+
+        } catch (error) {
+            console.error("Error loading dropdowns:", error);
+        }
+    }
+
+    function validateInputs(data) {
+        let isValid = true;
+        const errorMsg = document.getElementById('validationError');
+
+        const idMap = {
+            facultyId: 'facultySelect',
+            yearId: 'entryYear',
+            courseId: 'entryCourse',
+            instructorId: 'entryInstructor',
+            dayOfWeek: 'entryDay',
+            startTime: 'entryStart',
+            endTime: 'entryEnd',
+            room: 'entryRoom'
+        };
+
+        Object.values(idMap).forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.classList.remove('error-border');
+        });
+
+        for (let key in idMap) {
+            const value = data[key];
+            const elementId = idMap[key];
+            const element = document.getElementById(elementId);
+
+            if (!value || value.toString().trim() === "") {
+                if (element) element.classList.add('error-border');
+                isValid = false;
+            }
+        }
+
+        if (data.startTime && data.endTime && data.startTime >= data.endTime) {
+            document.getElementById('entryStart').classList.add('error-border');
+            document.getElementById('entryEnd').classList.add('error-border');
+            alert("Validation Error: End time must be AFTER start time.");
+            isValid = false;
+        }
+
+        if (errorMsg) errorMsg.style.display = isValid ? 'none' : 'block';
+        return isValid;
+    }
+
+    async function saveSchedule() {
+        const payload = {
+            facultyId: document.getElementById('facultySelect').value,
+            yearId: document.getElementById('entryYear').value,
+            courseId: document.getElementById('entryCourse').value,
+            instructorId: document.getElementById('entryInstructor').value,
+            dayOfWeek: document.getElementById('entryDay').value,
+            startTime: document.getElementById('entryStart').value,
+            endTime: document.getElementById('entryEnd').value,
+            room: document.getElementById('entryRoom').value
+        };
+
+        if (!validateInputs(payload)) return;
+
+        try {
+            const response = await fetch('/api/admin/schedule', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+
+            if(response.ok) {
+                alert("Schedule Updated!");
+                loadAllEntries();
+                document.getElementById('entryDay').value = '';
+                document.getElementById('entryRoom').value = '';
+            }
+        } catch (err) {
+            console.error("Submit error:", err);
+        }
+    }
+</script>
+
+<div class="card">
+    <h3>Manage Existing Schedule</h3>
+    <table id="adminScheduleTable" style="width: 100%; border-collapse: collapse;">
+        <thead>
+        <tr style="background:#eee;">
+            <th>ID</th>
+            <th>Course</th>
+            <th>Day</th>
+            <th>Room</th>
+            <th>Actions</th>
+        </tr>
+        </thead>
+        <tbody id="adminScheduleBody">
+        </tbody>
+    </table>
+</div>
+
+<script>
+    async function loadAllEntries() {
+        const res = await fetch('/api/admin/all-entries');
+        const data = await res.json();
+        const tbody = document.getElementById('adminScheduleBody');
+        tbody.innerHTML = '';
+
+        data.forEach(entry => {
+            tbody.innerHTML += `
+                <tr>
+                    <td>${entry.id}</td>
+                    <td>${entry.course.name}</td>
+                    <td>${entry.dayOfWeek}</td>
+                    <td>${entry.room}</td>
+                    <td>
+                        <button class="delete-btn" onclick="deleteEntry(${entry.id})">Delete</button>
+                    </td>
+                </tr>`;
+        });
+    }
+
+    async function deleteEntry(id) {
+        if(confirm("Are you sure you want to delete this entry?")) {
+            await fetch(`/api/admin/schedule/${id}`, { method: 'DELETE' });
+            loadAllEntries(); //Refresh
+        }
+    }
+
+    window.onload = () => {
+        initializeDropdowns();
+        loadAllEntries();
+    };
+</script>
+
+<button onclick="logout()">Logout</button>
+
+<script>
+    function logout() {
+        localStorage.removeItem("isAdmin");
+
+        alert("Logged out successfully!");
+        window.location.href = "login.html";
+    }
+</script>

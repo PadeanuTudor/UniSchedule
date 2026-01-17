@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>University Timetable</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; background-color: #f4f7f6; }
+        .selector-group { margin-bottom: 20px; display: flex; gap: 10px; }
+        select { padding: 8px; border-radius: 4px; border: 1px solid #ccc; }
+        table { width: 100%; border-collapse: collapse; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background-color: #007bff; color: white; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+    </style>
+</head>
+<body>
+<h1>University Schedule</h1>
+
+<div class="selector-group">
+    <select id="facultySelect" onchange="loadSpecialties()">
+        <option value="">Select Faculty</option>
+    </select>
+
+    <select id="specialtySelect" onchange="loadYears()" disabled>
+        <option value="">Select Specialty</option>
+    </select>
+
+    <select id="yearSelect" onchange="loadSchedule()" disabled>
+        <option value="">Select Year</option>
+    </select>
+</div>
+
+<table id="scheduleTable">
+    <thead>
+    <tr>
+        <th>Day</th>
+        <th>Course</th>
+        <th>Time</th>
+        <th>Instructor</th>
+        <th>Room</th>
+    </tr>
+    </thead>
+    <tbody id="scheduleBody">
+    </tbody>
+</table>
+
+<script>
+    const API_BASE = "http://localhost:8080/api";
+
+    window.onload = async () => {
+        const res = await fetch(`${API_BASE}/faculties`);
+        const faculties = await res.json();
+        const select = document.getElementById('facultySelect');
+        faculties.forEach(f => {
+            select.innerHTML += `<option value="${f.id}">${f.name}</option>`;
+        });
+    };
+
+    async function loadSpecialties() {
+        const facultyId = document.getElementById('facultySelect').value;
+        const specSelect = document.getElementById('specialtySelect');
+        specSelect.innerHTML = '<option value="">Select Specialty</option>';
+        specSelect.disabled = !facultyId;
+
+        if (facultyId) {
+            const res = await fetch(`${API_BASE}/faculties/${facultyId}/specialties`);
+            const data = await res.json();
+            data.forEach(s => specSelect.innerHTML += `<option value="${s.id}">${s.name}</option>`);
+        }
+    }
+
+    async function loadYears() {
+        const specId = document.getElementById('specialtySelect').value;
+        const yearSelect = document.getElementById('yearSelect');
+        yearSelect.innerHTML = '<option value="">Select Year</option>';
+        yearSelect.disabled = !specId;
+
+        if (specId) {
+            const res = await fetch(`${API_BASE}/specialties/${specId}/years`);
+            const data = await res.json();
+            data.forEach(y => yearSelect.innerHTML += `<option value="${y.id}">Year ${y.yearNumber}</option>`);
+        }
+    }
+
+    async function loadSchedule() {
+        const yearId = document.getElementById('yearSelect').value;
+        const tbody = document.getElementById('scheduleBody');
+        tbody.innerHTML = '';
+
+        if (yearId) {
+            const res = await fetch(`${API_BASE}/schedule?yearID=${yearId}`);
+            const schedule = await res.json();
+            schedule.forEach(entry => {
+                tbody.innerHTML += `
+                        <tr>
+                            <td>${entry.dayOfWeek}</td>
+                            <td>${entry.course.name} (${entry.course.code})</td>
+                            <td>${entry.startTime} - ${entry.endTime}</td>
+                            <td>${entry.instructor.name}</td>
+                            <td>${entry.room}</td>
+                        </tr>`;
+            });
+        }
+    }
+</script>
+</body>
+</html>
