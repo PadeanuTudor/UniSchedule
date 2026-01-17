@@ -1,1 +1,12 @@
 
+Implementation
+To continue development or download the application:
+
+Get the code from:
+https://github.com/PadeanuTudor/UniSchedule
+
+Database Setup: Import the provided SQL schema into your MySQL instance to generate the necessary tables and relationships.
+
+Backend Configuration: Update application.properties with your MySQL credentials.
+
+Start the Application: Run the Spring Boot application through your IDE.
